@@ -374,3 +374,176 @@ function closeFavorites() {
 <script> /* ===== 智能保存 + 屏幕诊断（替代 alert 探针） ===== */ (function () { 'use strict'; window.alert = function () {}; var oldToast = window.showToast; if (typeof oldToast === 'function' && !window.__probeMute) { window.__probeMute = true; window.showToast = function (m) { if (typeof m === 'string' && (m.indexOf('可用保存接口') >= 0 || m.indexOf('没找到保存接口') >= 0 || m.indexOf('正在保存视频') >= 0)) return; return oldToast.apply(this, arguments); }; } function findSaver() { var out = []; var names; try { names = Object.getOwnPropertyNames(window); } catch (e) { return out; } for (var i = 0; i < names.length; i++) { var n = names[i]; if (!/bridge|android|native|app|js|webview/i.test(n)) continue; var o; try { o = window[n]; } catch (e) { continue; } if (!o || typeof o !== 'object' || o === window || o === document) continue; ['saveImage', 'saveMedia', 'saveVideo', 'saveToAlbum', 'save'].forEach(function (f) { try { if (typeof o[f] === 'function') out.push({ obj: o, fn: f, label: n + '.' + f }); } catch (e) {} }); } ['saveImage', 'saveMedia', 'saveVideo', 'saveToAlbum'].forEach(function (f) { try { if (typeof window[f] === 'function') out.push({ obj: window, fn: f, label: 'window.' + f }); } catch (e) {} }); return out; } function panel(text) { var p = document.getElementById('saveProbePanel'); if (!p) { p = document.createElement('div'); p.id = 'saveProbePanel'; p.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:99999;' + 'max-height:46vh;overflow:auto;padding:14px 16px;border-radius:14px;' + 'background:rgba(18,18,22,.97);border:1px solid rgba(255,255,255,.28);' + 'color:#fff;font-size:13px;line-height:1.6;white-space:pre-wrap;' + 'box-shadow:0 16px 40px rgba(0,0,0,.7)'; p.onclick = function () { if (p.parentNode) p.parentNode.removeChild(p); }; document.body.appendChild(p); } p.textContent = text + '\n\n（点一下关闭）'; } function videoUrl() { var lb = document.getElementById('lightbox'); if (!lb) return ''; var v = lb.querySelector('video'); if (v) { var s = v.getAttribute('src') || v.currentSrc || ''; if (s) return s; } var c = lb.querySelectorAll('[data-full],[data-video="1"]'); for (var i = 0; i < c.length; i++) { var t = c[i].getAttribute('data-full') || c[i].getAttribute('src') || ''; if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(t)) return t; } return ''; } window.saveVideoNow = function (u) { if (!u) u = videoUrl(); if (!u) { panel('没有找到视频地址'); return; } var m = String(u).match(/\.([a-z0-9]{2,4})(\?|#|$)/i); var name = '682_' + Date.now() + '.' + (m ? m[1].toLowerCase() : 'mp4'); var list = findSaver(); for (var i = 0; i < list.length; i++) { try { list[i].obj[list[i].fn](u, name); panel('已调用：' + list[i].label + '\n文件名：' + name + '\n\n过几秒去相册看看；如果还是没有，把这段字发给助手。'); return; } catch (e) {} } panel('没有找到保存接口。\n' + '· 在浏览器里打开：正常，浏览器存不进相册。\n' + '· 在 APK 里也这样：把这几行发给助手。'); }; window.saveVideoUrl = function (u) { window.saveVideoNow(u); }; if (!window.__smartSave) { window.__smartSave = true; window.addEventListener('click', function (e) { var lb = document.getElementById('lightbox'); if (!lb || lb.classList.contains('hidden')) return; var u = videoUrl(); if (!u) return; var t = e.target; while (t && t !== lb) { var txt = (t.textContent || '').replace(/\s/g, ''); if (t.tagName === 'BUTTON' && txt.indexOf('保存') >= 0 && txt.length <= 8) { e.preventDefault(); e.stopPropagation(); window.saveVideoNow(u); return; } t = t.parentNode; } }, true); } setTimeout(function () { try { if (sessionStorage.getItem('saveProbeShown')) return; sessionStorage.setItem('saveProbeShown', '1'); } catch (e) {} var list = findSaver(); var s = ''; for (var i = 0; i < list.length; i++) s += '· ' + list[i].label + '\n'; panel('当前环境可用的保存接口：\n' + (s || '（一个都没找到）')); }, 2200); })(); </script>
 <script> /* ===== 终版：删掉诊断弹窗 + 液态玻璃保存按钮（渐入渐出） ===== */ (function () { 'use strict'; /* 1) 删掉并阻止那个黑色诊断面板 */ try { sessionStorage.setItem('saveProbeShown', '1'); } catch (e) {} var pp = document.getElementById('saveProbePanel'); if (pp && pp.parentNode) pp.parentNode.removeChild(pp); /* 2) 自动找 App 的保存接口 */ function findSaver() { var out = []; var names; try { names = Object.getOwnPropertyNames(window); } catch (e) { return out; } for (var i = 0; i < names.length; i++) { var n = names[i]; if (!/bridge|android|native|app|js|webview/i.test(n)) continue; var o; try { o = window[n]; } catch (e) { continue; } if (!o || typeof o !== 'object' || o === window || o === document) continue; ['saveImage', 'saveMedia', 'saveVideo', 'saveToAlbum', 'save'].forEach(function (f) { try { if (typeof o[f] === 'function') out.push({ obj: o, fn: f, label: n + '.' + f }); } catch (e) {} }); } ['saveImage', 'saveMedia', 'saveVideo', 'saveToAlbum'].forEach(function (f) { try { if (typeof window[f] === 'function') out.push({ obj: window, fn: f, label: 'window.' + f }); } catch (e) {} }); return out; } function toast(m) { if (window.showToast) window.showToast(m); else if (window.appToast) window.appToast(m); } function videoUrl() { var lb = document.getElementById('lightbox'); if (!lb) return ''; var v = lb.querySelector('video'); if (v) { var s = v.getAttribute('src') || v.currentSrc || ''; if (s) return s; } var c = lb.querySelectorAll('[data-full],[data-video="1"]'); for (var i = 0; i < c.length; i++) { var t = c[i].getAttribute('data-full') || c[i].getAttribute('src') || ''; if (/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(t)) return t; } return ''; } window.saveVideoNow = function (u) { if (!u) u = videoUrl(); if (!u) { toast('没有找到视频地址'); return; } var m = String(u).match(/\.([a-z0-9]{2,4})(\?|#|$)/i); var name = '682_' + Date.now() + '.' + (m ? m[1].toLowerCase() : 'mp4'); var list = findSaver(); for (var i = 0; i < list.length; i++) { try { list[i].obj[list[i].fn](u, name); toast('正在保存视频…'); return; } catch (e) {} } toast('保存接口未找到'); }; window.saveVideoUrl = function (u) { window.saveVideoNow(u); }; /* 3) 液态玻璃按钮 + 渐入渐出 */ if (!document.getElementById('vidFabCss')) { var st = document.createElement('style'); st.id = 'vidFabCss'; st.textContent = '#vidSaveFab{position:fixed;left:50%;' + 'bottom:calc(env(safe-area-inset-bottom,0px) + 86px);z-index:9700;' + 'transform:translateX(-50%) scale(.96);opacity:0;visibility:hidden;' + 'padding:11px 22px;border-radius:999px;font-size:14px;line-height:1;color:#fff;' + 'display:flex;align-items:center;gap:8px;' + 'background:linear-gradient(135deg,rgba(255,255,255,.28),rgba(255,255,255,.08));' + 'border:1px solid rgba(255,255,255,.45);' + 'box-shadow:0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.6);' + '-webkit-backdrop-filter:blur(18px) saturate(180%);' + 'backdrop-filter:blur(18px) saturate(180%);' + 'transition:opacity .28s ease,transform .28s ease,visibility .28s;}' + '#vidSaveFab.on{opacity:1;visibility:visible;transform:translateX(-50%) scale(1);}' + '#vidSaveFab.pressed{transform:translateX(-50%) scale(.9) !important;' + 'background:linear-gradient(135deg,rgba(255,255,255,.42),rgba(255,255,255,.18));}'; document.head.appendChild(st); } function sync() { var lb = document.getElementById('lightbox'); var on = !!lb && !lb.classList.contains('hidden') && !!videoUrl(); var b = document.getElementById('vidSaveFab'); if (!on) { if (b) b.classList.remove('on'); return; } if (!b) { b = document.createElement('div'); b.id = 'vidSaveFab'; b.textContent = '⬇ 保存视频'; b.addEventListener('pointerdown', function () { b.classList.add('pressed'); }); ['pointerup', 'pointercancel', 'pointerleave', 'touchend'].forEach(function (ev) { b.addEventListener(ev, function () { b.classList.remove('pressed'); }); }); b.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); b.classList.remove('pressed'); window.saveVideoNow(); }); document.body.appendChild(b); } b.classList.add('on'); } setInterval(sync, 300); sync(); })(); </script>
 <script> /* ===== 保存视频 · 真实进度逻辑（配套新版 APK） ===== */ (function () { 'use strict'; try { sessionStorage.setItem('saveProbeShown', '1'); } catch (e) {} var pp = document.getElementById('saveProbePanel'); if (pp && pp.parentNode) pp.parentNode.removeChild(pp); function toast(m) { if (window.showToast) window.showToast(m); else if (window.appToast) window.appToast(m); } window.dlMsg = function (m) { if (window.__dl && window.__dl.topToast) window.__dl.topToast(m); else toast(m); }; window.lbOpen = function () { var lb = document.getElementById('lightbox'); if (!lb || lb.classList.contains('hidden')) return false; var s = getComputedStyle(lb); if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return false; var r = lb.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; if (r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return false; var P = [[.25, .25], [.75, .25], [.5, .5], [.25, .75], [.75, .75]]; for (var i = 0; i < P.length; i++) { var el = document.elementFromPoint(r.left + r.width * P[i][0], r.top + r.height * P[i][1]); if (el && (el === lb || lb.contains(el))) return true; } return false; }; window.lbVideoUrl = function () { var lb = document.getElementById('lightbox'); if (!lb || !window.lbOpen()) return ''; var v = lb.querySelector('video'); if (v) { var s = v.getAttribute('src') || v.currentSrc || ''; if (s) return s; } var c = lb.querySelectorAll('[data-full],[data-video="1"]'); for (var i = 0; i < c.length; i++) { var t = c[i].getAttribute('data-full') || c[i].getAttribute('src') || ''; if (/\.(mp4|webm|mov|m4v|mkv|gifv)(\?|#|$)/i.test(t)) return t; } return ''; }; var busy = false, sawP = false, idle = null, sweep = null; window.dlBusy = function () { return busy; }; function stopAll() { if (idle) { clearTimeout(idle); idle = null; } if (sweep) { clearInterval(sweep); sweep = null; } } function sweepOn() { var r = document.getElementById('vidSaveRingRect'); var t = document.getElementById('vidSaveGlassTxt'); if (t) t.textContent = '下载中'; if (!r) return; var L = 0; try { L = r.getTotalLength(); } catch (e) {} if (!L) return; r.style.strokeDasharray = (L * 0.16) + ' ' + (L * 0.84); var off = 0; sweep = setInterval(function () { off -= L * 0.012; r.style.strokeDashoffset = off; }, 40); } function finish(ok, msg) { if (!busy) return; busy = false; stopAll(); var pcs = document.getElementById('vidSaveRingRect'); if (pcs) { pcs.style.strokeDasharray = ''; pcs.style.strokeDashoffset = ''; } if (window.__dl && window.__dl.progress) window.__dl.progress(1); if (window.__dl && window.__dl.done) window.__dl.done(); window.dlMsg(ok ? '已保存到相册' : ('保存失败：' + (msg || '未知'))); } window.onSaveProgress = function (pct) { sawP = true; if (idle) { clearTimeout(idle); idle = null; } if (sweep) { clearInterval(sweep); sweep = null; } var p = Number(pct); if (!isFinite(p)) p = 0; if (window.__dl && window.__dl.progress) window.__dl.progress(p / 100); }; var oldResult = window.onSaveResult; window.onSaveResult = function (ok, msg) { finish(!!ok, msg); if (typeof oldResult === 'function') { try { oldResult(ok, msg); } catch (e) {} } }; window.saveVideoNow = function (u) { if (busy) { window.dlMsg('正在下载中…'); return; } if (!u) u = window.lbVideoUrl(); if (!u) { window.dlMsg('没有找到视频地址'); return; } var m = String(u).match(/\.([a-z0-9]{2,4})(\?|#|$)/i); var name = '682_' + Date.now() + '.' + (m ? m[1].toLowerCase() : 'mp4'); if (window.Android && typeof window.Android.downloadVideo === 'function') { busy = true; sawP = false; if (window.__dl && window.__dl.start) window.__dl.start(); window.dlMsg('已开始下载'); idle = setTimeout(function () { if (busy && !sawP) sweepOn(); }, 1600); try { window.Android.downloadVideo(u, name); } catch (e) { finish(false, String((e && e.message) ? e.message : e)); } setTimeout(function () { if (busy) finish(false, '超时'); }, 300000); return; } if (window.Android && typeof window.Android.saveImage === 'function') { try { window.Android.saveImage(u, name); } catch (e) {} window.dlMsg('已开始下载（旧版 APK，无进度）'); return; } toast('保存接口未找到'); }; window.saveVideoUrl = function (u) { window.saveVideoNow(u); }; })(); </script>
+<script>
+/* ===== 保存视频 · 进度 UI（修复版：描边进度 + 退出灯箱即消失） ===== */
+(function () {
+  'use strict';
+
+  /* 隐藏旧版遗留按钮 */
+  if (!document.getElementById('fabKill2')) {
+    var k = document.createElement('style');
+    k.id = 'fabKill2';
+    k.textContent = '#vidSaveFab,#vidSaveBtn{display:none !important}';
+    document.head.appendChild(k);
+  }
+
+  window.__dlTopToast = function (text, ms) {
+    var t = document.getElementById('dlTopToast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'dlTopToast';
+      t.style.cssText =
+        'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 54px);' +
+        'transform:translateX(-50%) translateY(-10px);z-index:9800;opacity:0;' +
+        'padding:10px 20px;border-radius:999px;font-size:13px;line-height:1;color:#fff;' +
+        'white-space:nowrap;pointer-events:none;' +
+        'background:linear-gradient(135deg,rgba(255,255,255,.32),rgba(255,255,255,.10));' +
+        'border:1px solid rgba(255,255,255,.5);' +
+        'box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.7);' +
+        '-webkit-backdrop-filter:blur(18px) saturate(180%);' +
+        'backdrop-filter:blur(18px) saturate(180%);' +
+        'transition:opacity .3s ease,transform .3s ease';
+      document.body.appendChild(t);
+    }
+    t.textContent = text;
+    setTimeout(function () {
+      t.style.opacity = '1';
+      t.style.transform = 'translateX(-50%) translateY(0)';
+    }, 16);
+    if (window.__dlTopToast._t) clearTimeout(window.__dlTopToast._t);
+    window.__dlTopToast._t = setTimeout(function () {
+      t.style.opacity = '0';
+      t.style.transform = 'translateX(-50%) translateY(-10px)';
+    }, ms || 2000);
+  };
+
+  var btn = null, ring = null, ringLen = 0;
+
+  function build() {
+    if (btn) return;
+    btn = document.createElement('div');
+    btn.id = 'vidSaveGlass';
+    btn.innerHTML = '<span id="vidSaveGlassTxt">⬇ 保存视频</span>';
+    btn.style.cssText =
+      'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 86px);' +
+      'z-index:9700;display:none;opacity:0;transform:translateX(-50%) scale(.96);' +
+      'padding:11px 22px;border-radius:999px;font-size:14px;line-height:1;color:#fff;' +
+      'background:linear-gradient(135deg,rgba(255,255,255,.28),rgba(255,255,255,.08));' +
+      'border:1px solid rgba(255,255,255,.30);' +
+      'box-shadow:0 8px 32px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.6);' +
+      '-webkit-backdrop-filter:blur(18px) saturate(180%);' +
+      'backdrop-filter:blur(18px) saturate(180%);' +
+      'transition:opacity .28s ease,transform .28s ease,filter .2s ease;' +
+      '-webkit-user-select:none;user-select:none';
+    btn.addEventListener('pointerdown', function () {
+      if (window.dlBusy && window.dlBusy()) return;
+      btn.style.transform = 'translateX(-50%) scale(.92)';
+    });
+    ['pointerup', 'pointercancel', 'pointerleave', 'touchend'].forEach(function (ev) {
+      btn.addEventListener(ev, function () {
+        if (window.dlBusy && window.dlBusy()) return;
+        btn.style.transform = 'translateX(-50%) scale(1)';
+      });
+    });
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.saveVideoNow();
+    });
+    document.body.appendChild(btn);
+
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('id', 'vidSaveRing');
+    svg.style.cssText = 'position:absolute;left:0;top:0;pointer-events:none;overflow:visible';
+    ring = document.createElementNS(ns, 'rect');
+    ring.setAttribute('id', 'vidSaveRingRect');
+    ring.setAttribute('fill', 'none');
+    ring.setAttribute('stroke', 'rgba(233,233,240,.92)');
+    ring.setAttribute('stroke-width', '1.5');
+    ring.setAttribute('stroke-linecap', 'round');
+    ring.style.filter = 'drop-shadow(0 0 3px rgba(233,233,240,.9))';
+    svg.appendChild(ring);
+    btn.appendChild(svg);
+  }
+
+  function fit() {
+    if (!btn) return;
+    var w = btn.offsetWidth, h = btn.offsetHeight;
+    var svg = document.getElementById('vidSaveRing');
+    if (!svg || w < 2) return;
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    var rr = h / 2 - 1;
+    ring.setAttribute('x', 1);
+    ring.setAttribute('y', 1);
+    ring.setAttribute('width', w - 2);
+    ring.setAttribute('height', h - 2);
+    ring.setAttribute('rx', rr);
+    ring.setAttribute('ry', rr);
+    ringLen = 0;
+    try { ringLen = ring.getTotalLength(); } catch (e) {}
+    if (!ringLen) ringLen = 2 * (w + h) - 8 * rr + 2 * Math.PI * rr;
+  }
+
+  function setP(p) {
+    if (!ring || !ringLen) return;
+    ring.style.strokeDasharray = ringLen;
+    ring.style.strokeDashoffset = ringLen * (1 - Math.max(0, Math.min(1, p)));
+  }
+
+  window.__dl = {
+    topToast: window.__dlTopToast,
+    start: function () {
+      build();
+      btn.style.display = 'block';
+      var t = document.getElementById('vidSaveGlassTxt');
+      if (t) t.textContent = '0%';
+      fit();
+      setP(0);
+      btn.style.opacity = '1';
+      btn.style.transform = 'translateX(-50%) scale(1)';
+      btn.style.filter = 'brightness(.8)';
+    },
+    progress: function (p) {
+      var t = document.getElementById('vidSaveGlassTxt');
+      if (t) t.textContent = Math.round(p * 100) + '%';
+      fit();
+      setP(p);
+    },
+    done: function () {
+      setP(1);
+      setTimeout(function () {
+        var t = document.getElementById('vidSaveGlassTxt');
+        if (t) t.textContent = '⬇ 保存视频';
+        fit();
+        setP(0);
+        btn.style.filter = '';
+        sync();
+      }, 800);
+    }
+  };
+
+  function sync() {
+    build();
+    var on = !!(window.lbVideoUrl && window.lbVideoUrl());
+    if (on) {
+      btn.style.display = 'block';
+      fit();
+      setTimeout(function () {
+        btn.style.opacity = '1';
+        btn.style.transform = 'translateX(-50%) scale(1)';
+      }, 16);
+    } else {
+      btn.style.opacity = '0';
+      btn.style.transform = 'translateX(-50%) scale(.96)';
+      setTimeout(function () {
+        if (!(window.lbVideoUrl && window.lbVideoUrl())) btn.style.display = 'none';
+      }, 320);
+    }
+  }
+
+  setInterval(sync, 300);
+  sync();
+})();
+</script>
